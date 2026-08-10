@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "investment-platform.fullname" . }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "investment-platform.labels" . | nindent 4 }}
+data:
+  # ── Backend non-secret configuration ────────────────────────────────────────
+  ENVIRONMENT:            {{ .Values.backend.env.ENVIRONMENT | quote }}
+  LOG_LEVEL:              {{ .Values.backend.env.LOG_LEVEL | quote }}
+  DEBUG:                  {{ .Values.backend.env.DEBUG | quote }}
+  AI_PROVIDER:            {{ .Values.backend.env.AI_PROVIDER | quote }}
+  OPENAI_MODEL:           {{ .Values.backend.env.OPENAI_MODEL | default "gpt-4o" | quote }}
+  MARKET_DATA_PROVIDER:   {{ .Values.backend.env.MARKET_DATA_PROVIDER | quote }}
+  NEWS_PROVIDER:          {{ .Values.backend.env.NEWS_PROVIDER | quote }}
+  CORS_ORIGINS:           {{ .Values.backend.corsOrigins | quote }}
+
+  # ── Database connection (no password — password comes from Secret) ───────────
+  DATABASE_HOST:          {{ include "investment-platform.databaseHost" . | quote }}
+  DATABASE_PORT:          {{ include "investment-platform.databasePort" . | quote }}
+  DATABASE_NAME:          {{ include "investment-platform.databaseName" . | quote }}
+  DATABASE_USER:          {{ include "investment-platform.databaseUser" . | quote }}
+
+  # ── n8n non-secret configuration ─────────────────────────────────────────────
+  N8N_LOG_LEVEL:                      {{ .Values.n8n.env.N8N_LOG_LEVEL | quote }}
+  N8N_METRICS:                        {{ .Values.n8n.env.N8N_METRICS | quote }}
+  N8N_DIAGNOSTICS_ENABLED:           {{ .Values.n8n.env.N8N_DIAGNOSTICS_ENABLED | quote }}
+  N8N_VERSION_NOTIFICATIONS_ENABLED: {{ .Values.n8n.env.N8N_VERSION_NOTIFICATIONS_ENABLED | quote }}
+  N8N_TEMPLATES_ENABLED:             {{ .Values.n8n.env.N8N_TEMPLATES_ENABLED | quote }}
+  EXECUTIONS_PROCESS:                {{ .Values.n8n.env.EXECUTIONS_PROCESS | quote }}
+  EXECUTIONS_DATA_PRUNE:             {{ .Values.n8n.env.EXECUTIONS_DATA_PRUNE | quote }}
+  EXECUTIONS_DATA_MAX_AGE:           {{ .Values.n8n.env.EXECUTIONS_DATA_MAX_AGE | quote }}
+  N8N_HIRING_BANNER_ENABLED:         {{ .Values.n8n.env.N8N_HIRING_BANNER_ENABLED | quote }}
+  DB_TYPE:                           "postgresdb"
+  DB_POSTGRESDB_HOST:                {{ include "investment-platform.databaseHost" . | quote }}
+  DB_POSTGRESDB_PORT:                {{ include "investment-platform.databasePort" . | quote }}
+  DB_POSTGRESDB_DATABASE:            {{ include "investment-platform.n8nDatabaseName" . | quote }}
+  DB_POSTGRESDB_USER:                {{ include "investment-platform.databaseUser" . | quote }}
+
+  # ── Intra-cluster service discovery ──────────────────────────────────────────
+  BACKEND_URL: {{ include "investment-platform.backendServiceUrl" . | quote }}

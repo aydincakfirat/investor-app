@@ -1,0 +1,95 @@
+{
+  "name": "Backend Health Check",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://investment-platform-backend:8000/api/health",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "http-health",
+      "name": "Check Backend Health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "value2": "healthy"
+            }
+          ]
+        }
+      },
+      "id": "if-healthy",
+      "name": "Is Healthy?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log('Backend is healthy:', $input.first().json);\nreturn $input.all();"
+      },
+      "id": "log-healthy",
+      "name": "Log Healthy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "console.error('Backend health check FAILED:', $input.first().json);\nreturn $input.all();"
+      },
+      "id": "log-unhealthy",
+      "name": "Log Unhealthy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [{ "node": "Check Backend Health", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Backend Health": {
+      "main": [
+        [{ "node": "Is Healthy?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Is Healthy?": {
+      "main": [
+        [{ "node": "Log Healthy", "type": "main", "index": 0 }],
+        [{ "node": "Log Unhealthy", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["phase-1", "health"]
+}

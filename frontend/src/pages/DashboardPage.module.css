@@ -1,0 +1,40 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.banner {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.08), rgba(59, 130, 246, 0.08));
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 2rem;
+}
+
+.bannerTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.bannerSub {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  max-width: 60ch;
+}
+
+.card {
+  min-height: 200px;
+}
+
+.cardWide {
+  grid-column: 1 / -1;
+}
+
+.placeholder {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}

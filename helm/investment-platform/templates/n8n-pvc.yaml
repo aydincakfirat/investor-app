@@ -1,0 +1,21 @@
+{{- if and .Values.n8n.enabled .Values.n8n.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "investment-platform.fullname" . }}-n8n-data
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "investment-platform.componentLabels" (dict "component" "n8n" "context" .) | nindent 4 }}
+  annotations:
+    # Retain the PVC if the Helm release is deleted — protects workflow data
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - {{ .Values.n8n.persistence.accessMode }}
+  {{- if .Values.n8n.persistence.storageClass }}
+  storageClassName: {{ .Values.n8n.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.n8n.persistence.size }}
+{{- end }}

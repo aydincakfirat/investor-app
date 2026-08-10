@@ -1,0 +1,295 @@
+# ── investment-platform/values.yaml ─────────────────────────────────────────
+# Base defaults shared by all environments.
+# Override with values-dev.yaml or values-prod.yaml.
+# Never put real secrets in this file.
+
+# ── Global ────────────────────────────────────────────────────────────────────
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  # Namespace for all platform resources
+  namespace: investment-platform
+  # Image pull policy applied to all components unless overridden
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+
+# ── Service Account ───────────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# ── Backend ───────────────────────────────────────────────────────────────────
+backend:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    registry: ghcr.io
+    repository: your-org/investment-backend
+    tag: "0.1.0"
+    # digest: ""  # set to override tag (recommended for production pinning)
+
+  service:
+    type: ClusterIP
+    port: 8000
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+
+  env:
+    LOG_LEVEL: "INFO"
+    ENVIRONMENT: "production"
+    DEBUG: "false"
+    # AI provider: mock | openai | azure | anthropic
+    AI_PROVIDER: "mock"
+    OPENAI_MODEL: "gpt-4o"
+    # Market data provider: mock | alpha_vantage | polygon | yahoo
+    MARKET_DATA_PROVIDER: "mock"
+    # News provider: mock | newsapi
+    NEWS_PROVIDER: "mock"
+
+  # CORS origins — override per environment
+  corsOrigins: "http://localhost:3000"
+
+  probes:
+    liveness:
+      path: /api/live
+      initialDelaySeconds: 15
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /api/ready
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    startup:
+      path: /api/live
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      failureThreshold: 30
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    registry: ghcr.io
+    repository: your-org/investment-frontend
+    tag: "0.1.0"
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 15
+    readiness:
+      path: /health
+      initialDelaySeconds: 3
+      periodSeconds: 5
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 101   # nginx user in nginx:alpine
+    runAsGroup: 101
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false  # nginx needs to write tmp files
+    capabilities:
+      drop: ["ALL"]
+      add: ["NET_BIND_SERVICE"]
+
+# ── n8n ───────────────────────────────────────────────────────────────────────
+n8n:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    registry: docker.io
+    repository: n8nio/n8n
+    tag: "1.44.1"
+
+  service:
+    type: ClusterIP
+    port: 5678
+
+  # n8n uses a separate database from the backend
+  database:
+    name: n8n
+
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""   # use cluster default
+    accessMode: ReadWriteOnce
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  env:
+    N8N_LOG_LEVEL: "info"
+    N8N_METRICS: "false"
+    N8N_DIAGNOSTICS_ENABLED: "false"
+    N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+    N8N_TEMPLATES_ENABLED: "true"
+    EXECUTIONS_PROCESS: "main"
+    EXECUTIONS_DATA_PRUNE: "true"
+    EXECUTIONS_DATA_MAX_AGE: "168"   # 7 days in hours
+    N8N_HIRING_BANNER_ENABLED: "false"
+
+  probes:
+    liveness:
+      path: /healthz
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 10
+      failureThreshold: 5
+    readiness:
+      path: /healthz
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    startup:
+      path: /healthz
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      failureThreshold: 30
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false   # n8n writes to /home/node/.n8n
+
+# ── PostgreSQL (Bitnami sub-chart) ────────────────────────────────────────────
+postgresql:
+  enabled: true
+
+  auth:
+    # These are overridden from Kubernetes Secrets at deploy time.
+    # Do not put real passwords here.
+    username: investuser
+    password: ""              # set via --set or external secret
+    database: investdb
+    postgresPassword: ""      # superuser password — set via --set or external secret
+    existingSecret: ""        # set to use an existing K8s Secret instead
+
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    # Create the n8n database in addition to the backend database
+    initdb:
+      scripts:
+        create-n8n-db.sql: |
+          CREATE DATABASE n8n;
+          GRANT ALL PRIVILEGES ON DATABASE n8n TO investuser;
+
+  metrics:
+    enabled: false  # enable in Phase 11 with Prometheus
+
+# ── External Database (used when postgresql.enabled = false) ──────────────────
+externalDatabase:
+  host: ""
+  port: 5432
+  username: investuser
+  database: investdb
+  existingSecret: ""
+  existingSecretPasswordKey: "postgresql-password"
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+  hosts:
+    - host: invest.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+        - path: /api
+          pathType: Prefix
+          service: backend
+  n8n:
+    enabled: false
+    host: n8n.invest.example.com
+  tls: []
+  # tls:
+  #   - secretName: invest-tls
+  #     hosts:
+  #       - invest.example.com
+
+# ── NetworkPolicy ─────────────────────────────────────────────────────────────
+networkPolicy:
+  enabled: true
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# These values must be overridden at deploy time through:
+#   helm upgrade --set secrets.* ...
+# or via external secrets / Vault / Sealed Secrets.
+# DO NOT commit real values.
+secrets:
+  databasePassword: ""
+  postgresPassword: ""
+  n8nEncryptionKey: ""
+  internalApiKey: ""
+  openaiApiKey: ""
+  marketDataApiKey: ""
+  newsApiKey: ""

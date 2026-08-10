@@ -1,0 +1,226 @@
+name: CD — Deploy
+
+# ── Tetikleyiciler ────────────────────────────────────────────────────────────
+# CI tamamlandıktan sonra tetiklenir (main branch)
+on:
+  workflow_run:
+    workflows: ["CI — Build, Test, Push"]
+    types: [completed]
+    branches: [main]
+
+  # Manuel tetikleme (istediğin zaman deploy)
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deploy ortamı"
+        required: true
+        default: "dev"
+        type: choice
+        options: [dev, prod]
+      image_tag:
+        description: "Image tag (boş bırakırsan son SHA kullanılır)"
+        required: false
+        default: ""
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false  # Deploy'ları iptal etme
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  # ── CI başarılı mı kontrol et ─────────────────────────────────────────────
+  check-ci:
+    name: CI Durumu Kontrol
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      should-deploy: ${{ steps.check.outputs.deploy }}
+      image-tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Deploy kararı
+        id: check
+        run: echo "deploy=true" >> "$GITHUB_OUTPUT"
+
+      - name: Image tag belirle
+        id: tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            TAG="${{ inputs.image_tag }}"
+          else
+            # Son commit SHA'sının kısa versiyonu
+            TAG="sha-$(echo '${{ github.sha }}' | cut -c1-7)"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Kullanılan tag: ${TAG}"
+
+  # ── Helm lint (CD öncesi son kontrol) ─────────────────────────────────────
+  pre-deploy-lint:
+    name: Pre-Deploy Helm Lint
+    runs-on: ubuntu-latest
+    needs: check-ci
+    if: needs.check-ci.outputs.should-deploy == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Helm kur
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.15.1"
+
+      - name: Bitnami repo
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+          helm dependency update helm/investment-platform
+
+      - name: Lint
+        run: |
+          helm lint helm/investment-platform \
+            -f helm/investment-platform/values-prod.yaml \
+            --set secrets.databasePassword=placeholder \
+            --set secrets.postgresPassword=placeholder \
+            --set secrets.n8nEncryptionKey=placeholder00000000000000000000 \
+            --set secrets.internalApiKey=placeholder \
+            --set backend.image.tag=${{ needs.check-ci.outputs.image-tag }} \
+            --set frontend.image.tag=${{ needs.check-ci.outputs.image-tag }}
+
+  # ── ArgoCD image tag güncelle ─────────────────────────────────────────────
+  # GitOps yaklaşımı: values-prod.yaml'daki image tag'i güncelle,
+  # commit et → ArgoCD otomatik sync eder.
+  update-image-tag:
+    name: Image Tag Güncelle (GitOps)
+    runs-on: ubuntu-latest
+    needs: [check-ci, pre-deploy-lint]
+    if: >
+      needs.check-ci.outputs.should-deploy == 'true' &&
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod' ||
+       github.event_name == 'workflow_run')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Git config
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: values-prod.yaml'daki image tag'i güncelle
+        run: |
+          TAG="${{ needs.check-ci.outputs.image-tag }}"
+          echo "Tag güncelleniyor: ${TAG}"
+
+          # yq aracını kur
+          wget -qO /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64"
+          chmod +x /usr/local/bin/yq
+
+          # Backend ve frontend tag'lerini güncelle
+          yq e ".backend.image.tag = \"${TAG}\"" -i helm/investment-platform/values-prod.yaml
+          yq e ".frontend.image.tag = \"${TAG}\"" -i helm/investment-platform/values-prod.yaml
+
+          echo "Güncellenen değerler:"
+          grep -A2 "image:" helm/investment-platform/values-prod.yaml | grep "tag:"
+
+      - name: Commit ve push
+        run: |
+          TAG="${{ needs.check-ci.outputs.image-tag }}"
+          if git diff --quiet; then
+            echo "Değişiklik yok, commit atlanıyor"
+          else
+            git add helm/investment-platform/values-prod.yaml
+            git commit -m "chore: image tag güncelle → ${TAG} [skip ci]"
+            git push
+            echo "Commit atıldı. ArgoCD otomatik sync edecek."
+          fi
+
+  # ── Dev ortamına deploy (manuel veya develop branch) ──────────────────────
+  deploy-dev:
+    name: Dev Deploy
+    runs-on: ubuntu-latest
+    needs: [check-ci, pre-deploy-lint]
+    if: >
+      needs.check-ci.outputs.should-deploy == 'true' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.environment == 'dev'
+    environment:
+      name: development
+      url: http://invest.dev.local
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Helm kur
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.15.1"
+
+      - name: kubectl kur
+        uses: azure/setup-kubectl@v4
+
+      - name: Kubeconfig ayarla
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_DEV }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Bitnami repo
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+          helm dependency update helm/investment-platform
+
+      - name: Dev deploy
+        run: |
+          TAG="${{ needs.check-ci.outputs.image-tag }}"
+          helm upgrade --install investment-platform helm/investment-platform \
+            --namespace investment-platform-dev \
+            --create-namespace \
+            -f helm/investment-platform/values.yaml \
+            -f helm/investment-platform/values-dev.yaml \
+            --set backend.image.registry=ghcr.io \
+            --set backend.image.repository=${{ github.repository_owner }}/investment-platform-backend \
+            --set backend.image.tag="${TAG}" \
+            --set frontend.image.registry=ghcr.io \
+            --set frontend.image.repository=${{ github.repository_owner }}/investment-platform-frontend \
+            --set frontend.image.tag="${TAG}" \
+            --set secrets.databasePassword="${{ secrets.DEV_DB_PASSWORD }}" \
+            --set secrets.postgresPassword="${{ secrets.DEV_PG_PASSWORD }}" \
+            --set secrets.n8nEncryptionKey="${{ secrets.DEV_N8N_KEY }}" \
+            --set secrets.internalApiKey="${{ secrets.DEV_INTERNAL_KEY }}" \
+            --timeout 600s \
+            --wait
+
+      - name: Deploy sonucu
+        run: |
+          kubectl get pods -n investment-platform-dev
+          kubectl get svc  -n investment-platform-dev
+
+  # ── Deploy özeti ──────────────────────────────────────────────────────────
+  summary:
+    name: Deploy Özeti
+    runs-on: ubuntu-latest
+    needs: [check-ci, update-image-tag]
+    if: always() && needs.check-ci.outputs.should-deploy == 'true'
+    steps:
+      - name: Özet yaz
+        run: |
+          echo "## Deploy Özeti" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Alan | Değer |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image Tag | \`${{ needs.check-ci.outputs.image-tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tetikleyen | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ArgoCD | values-prod.yaml güncellendi → otomatik sync |" >> "$GITHUB_STEP_SUMMARY"

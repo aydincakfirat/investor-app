@@ -1,0 +1,119 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: investment-platform
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: investment-platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # ── ArgoCD Image Updater ───────────────────────────────────────────────────
+    # argocd-image-updater kuruluysa yeni image tag'lerini otomatik algılar
+    # ve values-prod.yaml'ı Git'e commit eder (write-back: git).
+    #
+    # Kurulum: https://argocd-image-updater.readthedocs.io
+    #   kubectl apply -n argocd -f \
+    #     https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/manifests/install.yaml
+    #
+    # Image listesi — virgülle ayrılmış alias:registry/repo formatı
+    argocd-image-updater.argoproj.io/image-list: >-
+      backend=ghcr.io/YOUR_GITHUB_USER/investment-platform-backend,
+      frontend=ghcr.io/YOUR_GITHUB_USER/investment-platform-frontend
+
+    # Her image için güncelleme stratejisi
+    # semver: sadece gerçek semver tag'leri (v1.2.3) takip eder
+    # digest: her yeni digest'i uygular (latest takip için)
+    argocd-image-updater.argoproj.io/backend.update-strategy: semver
+    argocd-image-updater.argoproj.io/frontend.update-strategy: semver
+
+    # Semver kısıtı — sadece patch güncellemelerini otomatik uygula
+    # Major/minor güncelleme için CD workflow manuel onay ister
+    argocd-image-updater.argoproj.io/backend.allow-tags: regexp:^[0-9]+\.[0-9]+\.[0-9]+$
+    argocd-image-updater.argoproj.io/frontend.allow-tags: regexp:^[0-9]+\.[0-9]+\.[0-9]+$
+
+    # Write-back yöntemi: git → values dosyasını günceller ve commit atar
+    # (helm parametresi olarak değil, git dosyası olarak saklar)
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/git-branch: main
+
+    # Helm values dosyasındaki hangi anahtarı güncellesin
+    argocd-image-updater.argoproj.io/backend.helm.image-name: backend.image.repository
+    argocd-image-updater.argoproj.io/backend.helm.image-tag:  backend.image.tag
+    argocd-image-updater.argoproj.io/frontend.helm.image-name: frontend.image.repository
+    argocd-image-updater.argoproj.io/frontend.helm.image-tag:  frontend.image.tag
+
+    # ghcr.io kimlik doğrulama — Secret adı
+    # kubectl create secret docker-registry ghcr-secret \
+    #   --docker-server=ghcr.io \
+    #   --docker-username=YOUR_GITHUB_USER \
+    #   --docker-password=YOUR_GITHUB_TOKEN \
+    #   -n argocd
+    argocd-image-updater.argoproj.io/backend.pull-secret:  pullsecret:argocd/ghcr-secret
+    argocd-image-updater.argoproj.io/frontend.pull-secret: pullsecret:argocd/ghcr-secret
+spec:
+  project: default
+
+  source:
+    # ── Replace with your actual Git repository URL ───────────────────────────
+    repoURL: YOUR_GIT_REPO_URL
+    targetRevision: main
+    path: helm/investment-platform
+
+    helm:
+      # Base values are always applied. Environment overlay is last (wins).
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+
+      # Secrets are injected via ArgoCD Vault Plugin, External Secrets Operator,
+      # or Sealed Secrets in production. The placeholders below illustrate how
+      # --set equivalents can be passed through ArgoCD when using SOPS/AVP.
+      # In practice, use a SecretGenerator or ESO ExternalSecret instead.
+      #
+      # parameters:
+      #   - name: secrets.databasePassword
+      #     value: $DB_PASSWORD
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: investment-platform
+
+  syncPolicy:
+    automated:
+      # Automatically sync when Git changes are detected
+      prune: true       # delete resources removed from Git
+      selfHeal: true    # revert manual cluster changes back to Git state
+    syncOptions:
+      - CreateNamespace=true        # create the namespace if it does not exist
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true              # delete old resources after new ones are healthy
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+
+  # ── Ignore differences that are managed outside Helm ─────────────────────────
+  ignoreDifferences:
+    # HPA current replica count is managed by the autoscaler, not Helm
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /spec/currentReplicas
+    # PostgreSQL sub-chart may set extra annotations on its StatefulSet
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates
+
+  # ── Health checks beyond ArgoCD defaults ─────────────────────────────────────
+  info:
+    - name: "Dashboard"
+      value: "https://invest.yourdomain.com"
+    - name: "n8n"
+      value: "https://n8n.yourdomain.com"
+    - name: "Backend Docs"
+      value: "https://invest.yourdomain.com/api/docs"

@@ -1,0 +1,18 @@
+{{- if .Values.n8n.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "investment-platform.fullname" . }}-n8n
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "investment-platform.componentLabels" (dict "component" "n8n" "context" .) | nindent 4 }}
+spec:
+  type: {{ .Values.n8n.service.type }}
+  selector:
+    {{- include "investment-platform.selectorLabels" (dict "component" "n8n" "context" .) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.n8n.service.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

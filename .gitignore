@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.env
+.venv
+venv/
+ENV/
+
+# Node / Frontend
+node_modules/
+dist/
+.vite/
+*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.tar
+
+# Helm
+*.tgz
+charts/
+
+# Secrets — never commit real credentials
+*.pem
+*.key
+*.crt
+secrets.yaml
+*-secret.yaml
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Logs
+*.log
+logs/

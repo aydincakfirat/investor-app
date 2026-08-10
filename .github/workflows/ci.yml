@@ -1,0 +1,280 @@
+name: CI — Build, Test, Push
+
+# ── Tetikleyiciler ────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+
+# Aynı branch için eski workflow'ları iptal et
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  # Repository adı otomatik küçük harfe çevrilir (ghcr.io zorunluluğu)
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  # ── Backend testleri ──────────────────────────────────────────────────────
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      # Unit testler SQLite kullanır, bu servis integration testler için
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: investuser
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: investdb_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Bağımlılıkları kur
+        run: pip install -r requirements.txt
+
+      - name: Lint (ruff)
+        run: |
+          pip install ruff --quiet
+          ruff check app/ tests/ --select E,W,F --ignore E501 || true
+
+      - name: Unit testleri çalıştır
+        env:
+          DATABASE_URL: postgresql+asyncpg://investuser:testpassword@localhost:5432/investdb_test
+          ENVIRONMENT: test
+          LOG_LEVEL: WARNING
+          INTERNAL_API_KEY: test-internal-key
+          AI_PROVIDER: mock
+          MARKET_DATA_PROVIDER: mock
+          NEWS_PROVIDER: mock
+        run: pytest --tb=short -v --co -q 2>&1 | head -5; pytest --tb=short -v
+
+      - name: Test sonuçlarını yükle
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: backend/.pytest_cache/
+
+  # ── Backend image build & push ─────────────────────────────────────────────
+  build-backend:
+    name: Build Backend Image
+    runs-on: ubuntu-latest
+    needs: test-backend
+    # PR'larda sadece build et, push etme
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker Buildx kur
+        uses: docker/setup-buildx-action@v3
+
+      - name: ghcr.io login
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/investment-platform-backend
+          tags: |
+            # main branch → latest + sha kısa hash
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=short
+            # develop branch → dev tag
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/develop' }}
+            # Semver tag (örn. v1.2.3 → 1.2.3, 1.2, 1)
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          labels: |
+            org.opencontainers.image.title=Investment Platform Backend
+            org.opencontainers.image.description=FastAPI backend for AI Investment Intelligence Platform
+
+      - name: Build ve Push (backend)
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  # ── Frontend image build & push ────────────────────────────────────────────
+  build-frontend:
+    name: Build Frontend Image
+    runs-on: ubuntu-latest
+    # Frontend testi yoksa test-backend'e bağlı olmak yerine direkt çalışır
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js kur (type-check için)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Bağımlılıkları kur
+        working-directory: frontend
+        run: npm ci
+
+      - name: TypeScript type-check
+        working-directory: frontend
+        run: npm run type-check
+
+      - name: Docker Buildx kur
+        uses: docker/setup-buildx-action@v3
+
+      - name: ghcr.io login
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/investment-platform-frontend
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=short
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          labels: |
+            org.opencontainers.image.title=Investment Platform Frontend
+            org.opencontainers.image.description=React/Vite frontend for AI Investment Intelligence Platform
+
+      - name: Build ve Push (frontend)
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  # ── Helm lint ─────────────────────────────────────────────────────────────
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Helm kur
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.15.1"
+
+      - name: Bitnami repo ekle
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+
+      - name: Chart bağımlılıklarını indir
+        run: helm dependency update helm/investment-platform
+
+      - name: Helm lint (dev values)
+        run: |
+          helm lint helm/investment-platform \
+            -f helm/investment-platform/values-dev.yaml \
+            --set secrets.databasePassword=testpass \
+            --set secrets.postgresPassword=testsuper \
+            --set secrets.n8nEncryptionKey=testkey0000000000000000000000000 \
+            --set secrets.internalApiKey=testinternal \
+            --set backend.image.registry=ghcr.io \
+            --set backend.image.repository=test-org/investment-platform-backend \
+            --set frontend.image.registry=ghcr.io \
+            --set frontend.image.repository=test-org/investment-platform-frontend
+
+      - name: Helm lint (prod values)
+        run: |
+          helm lint helm/investment-platform \
+            -f helm/investment-platform/values-prod.yaml \
+            --set secrets.databasePassword=testpass \
+            --set secrets.postgresPassword=testsuper \
+            --set secrets.n8nEncryptionKey=testkey0000000000000000000000000 \
+            --set secrets.internalApiKey=testinternal \
+            --set backend.image.registry=ghcr.io \
+            --set backend.image.repository=test-org/investment-platform-backend \
+            --set frontend.image.registry=ghcr.io \
+            --set frontend.image.repository=test-org/investment-platform-frontend
+
+      - name: Helm template render (dry-run)
+        run: |
+          helm template investment-platform helm/investment-platform \
+            -f helm/investment-platform/values-dev.yaml \
+            --set secrets.databasePassword=testpass \
+            --set secrets.postgresPassword=testsuper \
+            --set secrets.n8nEncryptionKey=testkey0000000000000000000000000 \
+            --set secrets.internalApiKey=testinternal \
+            --set backend.image.registry=ghcr.io \
+            --set backend.image.repository=test-org/investment-platform-backend \
+            --set frontend.image.registry=ghcr.io \
+            --set frontend.image.repository=test-org/investment-platform-frontend \
+            > /tmp/rendered.yaml
+          echo "Render OK — $(wc -l < /tmp/rendered.yaml) satır"

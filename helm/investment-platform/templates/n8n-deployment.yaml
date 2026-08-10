@@ -1,0 +1,142 @@
+{{- if .Values.n8n.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "investment-platform.fullname" . }}-n8n
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "investment-platform.componentLabels" (dict "component" "n8n" "context" .) | nindent 4 }}
+spec:
+  # n8n community edition does not support active/active HA.
+  # Keep replicas at 1 unless using n8n Enterprise queue mode.
+  replicas: {{ .Values.n8n.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "investment-platform.selectorLabels" (dict "component" "n8n" "context" .) | nindent 6 }}
+  strategy:
+    # Recreate avoids two n8n instances competing for the same PVC
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "investment-platform.componentLabels" (dict "component" "n8n" "context" .) | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "investment-platform.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      securityContext:
+        runAsNonRoot: {{ .Values.n8n.securityContext.runAsNonRoot }}
+        runAsUser:    {{ .Values.n8n.securityContext.runAsUser }}
+        runAsGroup:   {{ .Values.n8n.securityContext.runAsGroup }}
+        fsGroup:      {{ .Values.n8n.securityContext.runAsGroup }}
+        seccompProfile:
+          type: RuntimeDefault
+
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "investment-platform.databaseHost" . }} {{ include "investment-platform.databasePort" . }}; do
+                echo "Waiting for PostgreSQL..."; sleep 3;
+              done
+              echo "PostgreSQL is ready."
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+      containers:
+        - name: n8n
+          image: {{ include "investment-platform.image" .Values.n8n.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: 5678
+              protocol: TCP
+
+          securityContext:
+            runAsNonRoot:             {{ .Values.n8n.securityContext.runAsNonRoot }}
+            runAsUser:                {{ .Values.n8n.securityContext.runAsUser }}
+            runAsGroup:               {{ .Values.n8n.securityContext.runAsGroup }}
+            allowPrivilegeEscalation: {{ .Values.n8n.securityContext.allowPrivilegeEscalation }}
+            readOnlyRootFilesystem:   {{ .Values.n8n.securityContext.readOnlyRootFilesystem }}
+            capabilities:
+              drop: ["ALL"]
+
+          envFrom:
+            - configMapRef:
+                name: {{ include "investment-platform.fullname" . }}-config
+          env:
+            - name: DB_POSTGRESDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "investment-platform.fullname" . }}-secrets
+                  key: DB_POSTGRESDB_PASSWORD
+            - name: N8N_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "investment-platform.fullname" . }}-secrets
+                  key: N8N_ENCRYPTION_KEY
+            # n8n home directory — must match the PVC mountPath
+            - name: N8N_USER_FOLDER
+              value: "/home/node/.n8n"
+            # Webhook URL used for external triggers (set to your ingress URL in prod)
+            - name: WEBHOOK_URL
+              value: "http://{{ include "investment-platform.fullname" . }}-n8n:5678"
+
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+
+          resources:
+            {{- toYaml .Values.n8n.resources | nindent 12 }}
+
+          startupProbe:
+            httpGet:
+              path: {{ .Values.n8n.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.n8n.probes.startup.initialDelaySeconds }}
+            periodSeconds:       {{ .Values.n8n.probes.startup.periodSeconds }}
+            failureThreshold:    {{ .Values.n8n.probes.startup.failureThreshold }}
+
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.n8n.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.n8n.probes.liveness.initialDelaySeconds }}
+            periodSeconds:       {{ .Values.n8n.probes.liveness.periodSeconds }}
+            timeoutSeconds:      {{ .Values.n8n.probes.liveness.timeoutSeconds }}
+            failureThreshold:    {{ .Values.n8n.probes.liveness.failureThreshold }}
+
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.n8n.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.n8n.probes.readiness.initialDelaySeconds }}
+            periodSeconds:       {{ .Values.n8n.probes.readiness.periodSeconds }}
+            timeoutSeconds:      {{ .Values.n8n.probes.readiness.timeoutSeconds }}
+            failureThreshold:    {{ .Values.n8n.probes.readiness.failureThreshold }}
+
+      volumes:
+        - name: n8n-data
+          {{- if .Values.n8n.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "investment-platform.fullname" . }}-n8n-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

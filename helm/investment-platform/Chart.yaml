@@ -1,0 +1,21 @@
+apiVersion: v2
+name: investment-platform
+description: >
+  AI Investment Intelligence Platform — Kubernetes-native deployment.
+  Includes Frontend, Backend API, n8n workflow orchestrator, and PostgreSQL.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+maintainers:
+  - name: platform-team
+
+dependencies:
+  # Bitnami PostgreSQL sub-chart — production-grade StatefulSet with PVC,
+  # init scripts, and backup hooks. Configured entirely through values.yaml
+  # so switching to a managed database later requires only removing this
+  # dependency and updating DATABASE_URL.
+  - name: postgresql
+    version: "15.5.20"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled

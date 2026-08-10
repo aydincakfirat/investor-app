@@ -1,0 +1,112 @@
+# ── values-prod.yaml ─────────────────────────────────────────────────────────
+# Production environment overrides.
+# Higher resources, HPA enabled, TLS ingress, strict network policies.
+# All secret values come from external secrets / Vault / Sealed Secrets —
+# never set here in plain text.
+
+global:
+  namespace: investment-platform
+  imagePullPolicy: IfNotPresent
+
+backend:
+  replicaCount: 2
+  image:
+    registry: ghcr.io
+    repository: your-org/investment-backend
+    tag: "0.1.0"   # ArgoCD image updater will manage this
+  env:
+    LOG_LEVEL: "INFO"
+    ENVIRONMENT: "production"
+    DEBUG: "false"
+    AI_PROVIDER: "openai"
+    MARKET_DATA_PROVIDER: "alpha_vantage"
+    NEWS_PROVIDER: "newsapi"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 384Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 65
+
+frontend:
+  replicaCount: 2
+  image:
+    registry: ghcr.io
+    repository: your-org/investment-frontend
+    tag: "0.1.0"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+
+n8n:
+  replicaCount: 1   # n8n single instance (no built-in HA in community edition)
+  image:
+    tag: "1.44.1"
+  env:
+    N8N_LOG_LEVEL: "info"
+    N8N_METRICS: "true"
+  persistence:
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 300m
+      memory: 768Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+postgresql:
+  primary:
+    persistence:
+      size: 50Gi
+      storageClass: "fast-ssd"  # adjust to your cluster's storage class
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+  metrics:
+    enabled: true   # enable Prometheus exporter in production
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: invest.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+        - path: /api
+          pathType: Prefix
+          service: backend
+  n8n:
+    enabled: false   # n8n not publicly exposed by default in production
+    host: n8n.yourdomain.com
+  tls:
+    - secretName: investment-platform-tls
+      hosts:
+        - invest.yourdomain.com
+
+networkPolicy:
+  enabled: true

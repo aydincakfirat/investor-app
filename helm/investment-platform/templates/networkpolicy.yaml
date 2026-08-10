@@ -1,0 +1,185 @@
+{{- if .Values.networkPolicy.enabled }}
+# ── Default deny-all for the namespace ────────────────────────────────────────
+# Every pod must have an explicit allow rule to receive or send traffic.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "investment-platform.fullname" . }}-default-deny
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "investment-platform.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# ── Allow DNS egress for all pods ─────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "investment-platform.fullname" . }}-allow-dns
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "investment-platform.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+# ── Backend: accept from Ingress controller and n8n ───────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "investment-platform.fullname" . }}-backend
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "investment-platform.componentLabels" (dict "component" "backend" "context" .) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "investment-platform.selectorLabels" (dict "component" "backend" "context" .) | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # From Ingress controller (nginx) — namespace-level label required on the
+    # ingress-nginx namespace: kubernetes.io/metadata.name: ingress-nginx
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 8000
+    # From n8n (same namespace)
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "investment-platform.selectorLabels" (dict "component" "n8n" "context" .) | nindent 14 }}
+      ports:
+        - port: 8000
+  egress:
+    # To PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - port: 5432
+    # To external data providers and APIs (HTTPS)
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+---
+# ── Frontend: accept from Ingress controller ──────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "investment-platform.fullname" . }}-frontend
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "investment-platform.componentLabels" (dict "component" "frontend" "context" .) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "investment-platform.selectorLabels" (dict "component" "frontend" "context" .) | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 80
+  egress:
+    # Frontend nginx proxy calls backend — same namespace
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "investment-platform.selectorLabels" (dict "component" "backend" "context" .) | nindent 14 }}
+      ports:
+        - port: 8000
+---
+# ── n8n: accept from Ingress controller (when enabled) ────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "investment-platform.fullname" . }}-n8n
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "investment-platform.componentLabels" (dict "component" "n8n" "context" .) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "investment-platform.selectorLabels" (dict "component" "n8n" "context" .) | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.ingress.n8n.enabled }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 5678
+    {{- end }}
+  egress:
+    # To backend API
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "investment-platform.selectorLabels" (dict "component" "backend" "context" .) | nindent 14 }}
+      ports:
+        - port: 8000
+    # To PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - port: 5432
+    # To external APIs (news, market data, AI, email)
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 587
+          protocol: TCP   # SMTP with STARTTLS
+        - port: 465
+          protocol: TCP   # SMTP over SSL
+---
+# ── PostgreSQL: accept only from backend and n8n ─────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "investment-platform.fullname" . }}-postgresql
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "investment-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "investment-platform.selectorLabels" (dict "component" "backend" "context" .) | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "investment-platform.selectorLabels" (dict "component" "n8n" "context" .) | nindent 14 }}
+      ports:
+        - port: 5432
+{{- end }}
