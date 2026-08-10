@@ -26,10 +26,9 @@ backend:
   replicaCount: 1
 
   image:
-    registry: ghcr.io
-    repository: your-org/investment-backend
-    tag: "0.1.0"
-    # digest: ""  # set to override tag (recommended for production pinning)
+    registry: docker.io
+    repository: firataydincak/investor-backend
+    tag: "v1"
 
   service:
     type: ClusterIP
@@ -98,9 +97,9 @@ frontend:
   replicaCount: 1
 
   image:
-    registry: ghcr.io
-    repository: your-org/investment-frontend
-    tag: "0.1.0"
+    registry: docker.io
+    repository: firataydincak/investor-frontend
+    tag: "v1"
 
   service:
     type: ClusterIP
