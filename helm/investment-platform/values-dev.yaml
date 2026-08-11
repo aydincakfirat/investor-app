@@ -11,7 +11,7 @@ backend:
   image:
     registry: docker.io
     repository: firataydincak/investor-backend
-    tag: "v4"
+    tag: "v6"
   env:
     LOG_LEVEL: "DEBUG"
     ENVIRONMENT: "development"
@@ -19,7 +19,7 @@ backend:
     AI_PROVIDER: "mock"
     MARKET_DATA_PROVIDER: "mock"
     NEWS_PROVIDER: "mock"
-  corsOrigins: "http://localhost:3000,http://localhost:5173"
+  corsOrigins: '["http://localhost:3000","http://localhost:5173"]'
   resources:
     requests:
       cpu: 50m
