@@ -3,6 +3,7 @@ Application configuration loaded from environment variables.
 All secrets must come from the environment — never hard-coded here.
 """
 from functools import lru_cache
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,27 +28,41 @@ class Settings(BaseSettings):
     database_max_overflow: int = 20
 
     # ── Internal API ─────────────────────────────────────────────────────────
-    # Shared secret used by n8n to call internal endpoints
     internal_api_key: str = "change-me-in-production"
 
     # ── AI Provider ──────────────────────────────────────────────────────────
-    # Provider name: openai | azure | anthropic | mock
     ai_provider: str = "mock"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
 
     # ── Market Data ───────────────────────────────────────────────────────────
-    # Provider name: mock | alpha_vantage | polygon | yahoo
     market_data_provider: str = "mock"
     market_data_api_key: str = ""
 
     # ── News ─────────────────────────────────────────────────────────────────
-    # Provider name: mock | newsapi | refinitiv
     news_provider: str = "mock"
     news_api_key: str = ""
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: object) -> object:
+        """
+        Env var'dan hem JSON array hem virgülle ayrılmış string kabul eder.
+          JSON  : '["http://a.com","http://b.com"]'
+          Virgül: 'http://a.com,http://b.com'
+        """
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("["):
+                import json
+                return json.loads(v)
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
 
 
 @lru_cache
