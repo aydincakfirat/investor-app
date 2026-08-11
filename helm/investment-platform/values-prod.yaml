@@ -74,7 +74,7 @@ postgresql:
   primary:
     persistence:
       size: 50Gi
-      storageClass: "fast-ssd"  # adjust to your cluster's storage class
+      storageClass: ""  # adjust to your cluster's storage class
     resources:
       requests:
         cpu: 500m
