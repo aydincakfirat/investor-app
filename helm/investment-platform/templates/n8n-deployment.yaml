@@ -84,8 +84,8 @@ spec:
             - name: DB_POSTGRESDB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "investment-platform.fullname" . }}-secrets
-                  key: DB_POSTGRESDB_PASSWORD
+                  name: {{ include "investment-platform.fullname" . }}-postgresql
+                  key: password
             - name: N8N_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
