@@ -28,7 +28,7 @@ backend:
   image:
     registry: docker.io
     repository: firataydincak/investor-backend
-    tag: "v3"
+    tag: "v4"
 
   service:
     type: ClusterIP

@@ -5,10 +5,9 @@ All secrets must come from the environment — never hard-coded here.
 
 from functools import lru_cache
 import json
-from typing import Annotated
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict, NoDecode
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -50,32 +49,32 @@ class Settings(BaseSettings):
     news_api_key: str = ""
 
     # ── CORS ──────────────────────────────────────────────────────────────
-    # NoDecode sayesinde pydantic-settings environment variable'ı
-    # otomatik olarak JSON parse etmeye çalışmaz.
-    cors_origins: Annotated[
-        list[str],
-        NoDecode,
-    ] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-    ]
+    # Environment variable'dan string olarak okunuyor.
+    # Validator bunu list[str]'e dönüştürüyor.
+    cors_origins: str = (
+        "http://localhost:3000,http://localhost:5173"
+    )
 
     @field_validator("cors_origins", mode="before")
     @classmethod
-    def parse_cors_origins(cls, v: object) -> object:
+    def parse_cors_origins(cls, v: object) -> list[str]:
         """
-        Environment variable'dan hem JSON array hem de
-        virgülle ayrılmış string kabul eder.
+        CORS origins değerini normalize eder.
 
-        JSON:
-            ["http://a.com", "http://b.com"]
+        Desteklenen formatlar:
 
         Virgülle ayrılmış:
-            http://a.com,http://b.com
+            http://localhost:3000,http://localhost:5173
+
+        JSON array:
+            ["http://localhost:3000","http://localhost:5173"]
+
+        Tek değer:
+            http://localhost:3000
         """
 
         if isinstance(v, list):
-            return v
+            return [str(item).strip() for item in v if str(item).strip()]
 
         if isinstance(v, str):
             v = v.strip()
@@ -93,7 +92,11 @@ class Settings(BaseSettings):
                             "CORS_ORIGINS JSON value must be an array."
                         )
 
-                    return parsed
+                    return [
+                        str(item).strip()
+                        for item in parsed
+                        if str(item).strip()
+                    ]
 
                 except json.JSONDecodeError as exc:
                     raise ValueError(
@@ -107,7 +110,11 @@ class Settings(BaseSettings):
                 if item.strip()
             ]
 
-        return v
+        raise ValueError(
+            f"Invalid CORS_ORIGINS value: {type(v).__name__}"
+        )
+
+    # ── Settings ─────────────────────────────────────────────────────────
 
 
 @lru_cache

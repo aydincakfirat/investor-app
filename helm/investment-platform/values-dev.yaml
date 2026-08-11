@@ -11,7 +11,7 @@ backend:
   image:
     registry: docker.io
     repository: firataydincak/investor-backend
-    tag: "v3"
+    tag: "v4"
   env:
     LOG_LEVEL: "DEBUG"
     ENVIRONMENT: "development"
