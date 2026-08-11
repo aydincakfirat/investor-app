@@ -222,6 +222,12 @@ postgresql:
     existingSecret: ""        # set to use an existing K8s Secret instead
 
   primary:
+    pgHbaConfiguration: |-
+      host     all             all             0.0.0.0/0               scram-sha-256
+      host     all             all             ::/0                    scram-sha-256
+      local    all             all                                     scram-sha-256
+      host     all             all        127.0.0.1/32                 scram-sha-256
+      host     all             all        ::1/128                      scram-sha-256
     persistence:
       enabled: true
       size: 10Gi
