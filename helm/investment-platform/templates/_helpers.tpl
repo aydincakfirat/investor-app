@@ -70,12 +70,12 @@ Service account name helper.
 {{- end }}
 
 {{/*
-Database host — uses the Bitnami sub-chart service name by default.
-When postgresql.enabled is false, host comes from externalDatabase.host.
+Database host — uses global.databaseHost for split-app architecture.
+When postgresql.enabled is false, falls back to externalDatabase.host.
 */}}
 {{- define "investment-platform.databaseHost" -}}
 {{- if .Values.postgresql.enabled }}
-{{- printf "%s-postgresql" .Release.Name }}
+{{- .Values.global.databaseHost }}
 {{- else }}
 {{- .Values.externalDatabase.host }}
 {{- end }}

@@ -16,6 +16,9 @@ global:
   # Backend service host (used by frontend and n8n to reach backend)
   # In split-app mode: set to investment-platform-be-backend (backend app's service)
   backendServiceHost: "investment-platform-be-backend"
+  # Database host (used by backend and n8n to reach PostgreSQL)
+  # In split-app mode: set to investment-platform-postgre-postgresql (postgres app's service)
+  databaseHost: "investment-platform-postgre-postgresql"
 
 # ── Service Account ───────────────────────────────────────────────────────────
 serviceAccount:
