@@ -38,3 +38,132 @@
   font-size: 0.875rem;
   line-height: 1.7;
 }
+/* Market data */
+
+.marketList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.marketRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.marketRow:last-child {
+  border-bottom: none;
+}
+
+.marketName {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.marketName span {
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.marketName small {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.marketValue {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  white-space: nowrap;
+}
+
+.price {
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.changePositive {
+  color: #22c55e;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.changeNegative {
+  color: #ef4444;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.changeNeutral {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.changeAbsolute {
+  opacity: 0.75;
+}
+
+.loading {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  padding: 1rem 0;
+}
+
+.error {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.error strong {
+  color: #ef4444;
+}
+
+.refreshButton {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.refreshButton:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+}
+
+.refreshButton:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* Banner artık başlık + Refresh butonunu yan yana tutuyor */
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
