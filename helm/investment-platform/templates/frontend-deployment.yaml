@@ -42,7 +42,7 @@ spec:
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           env:
             - name: BACKEND_HOST
-              value: {{ printf "%s-backend" .Release.Name | quote }}
+              value: {{ .Values.global.backendServiceHost | quote }}
           ports:
             - name: http
               containerPort: 8082

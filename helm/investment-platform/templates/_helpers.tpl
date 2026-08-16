@@ -147,9 +147,10 @@ n8n database name (separate from the backend DB).
 
 {{/*
 Backend service URL used by n8n (Kubernetes DNS).
+In split-app mode, uses global.backendServiceHost to reach the separate backend app.
 */}}
 {{- define "investment-platform.backendServiceUrl" -}}
-{{- printf "http://%s-backend:%v" .Release.Name (.Values.backend.service.port | default 8000) }}
+{{- printf "http://%s:%v" .Values.global.backendServiceHost (.Values.backend.service.port | default 8000) }}
 {{- end }}
 
 {{/*

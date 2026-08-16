@@ -13,6 +13,9 @@ global:
   # Image pull policy applied to all components unless overridden
   imagePullPolicy: IfNotPresent
   imagePullSecrets: []
+  # Backend service host (used by frontend and n8n to reach backend)
+  # In split-app mode: set to investment-platform-be-backend (backend app's service)
+  backendServiceHost: "investment-platform-be-backend"
 
 # ── Service Account ───────────────────────────────────────────────────────────
 serviceAccount:
