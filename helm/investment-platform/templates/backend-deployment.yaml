@@ -90,7 +90,7 @@ spec:
             - name: _DB_PASS
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "investment-platform.fullname" . }}-postgresql
+                  name: {{ .Values.global.postgresSecretName }}
                   key: password
             - name: DATABASE_URL
               value: "postgresql+asyncpg://{{ include "investment-platform.databaseUser" . }}:$(_DB_PASS)@{{ include "investment-platform.databaseHost" . }}:{{ include "investment-platform.databasePort" . }}/{{ include "investment-platform.databaseName" . }}"

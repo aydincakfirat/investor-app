@@ -19,6 +19,9 @@ global:
   # Database host (used by backend and n8n to reach PostgreSQL)
   # In split-app mode: set to investment-platform-postgre-postgresql (postgres app's service)
   databaseHost: "investment-platform-postgre-postgresql"
+  # PostgreSQL secret name (contains password for database connection)
+  # In split-app mode: set to investment-platform-postgre-postgresql (postgres app's secret)
+  postgresSecretName: "investment-platform-postgre-postgresql"
 
 # ── Service Account ───────────────────────────────────────────────────────────
 serviceAccount:
