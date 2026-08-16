@@ -99,7 +99,7 @@ frontend:
   image:
     registry: docker.io
     repository: firataydincak/investor-frontend
-    tag: "v3"
+    tag: "v5"
 
   service:
     type: ClusterIP

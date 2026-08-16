@@ -35,7 +35,7 @@ frontend:
   image:
     registry: docker.io
     repository: firataydincak/investor-frontend
-    tag: "v3"
+    tag: "v5"
   resources:
     requests:
       cpu: 20m

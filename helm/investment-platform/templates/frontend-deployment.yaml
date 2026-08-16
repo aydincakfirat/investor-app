@@ -40,6 +40,9 @@ spec:
         - name: frontend
           image: {{ include "investment-platform.image" .Values.frontend.image }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          env:
+            - name: BACKEND_HOST
+              value: {{ printf "%s-backend" .Release.Name | quote }}
           ports:
             - name: http
               containerPort: 8082

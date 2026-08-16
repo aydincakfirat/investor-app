@@ -30,11 +30,13 @@ COPY --from=builder /build/dist /usr/share/nginx/html
 # from /etc/nginx/templates/*.template into /etc/nginx/conf.d/default.conf.
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
-# nginx non-root setup
+# nginx non-root setup: make conf.d writable for envsubst template processing
 RUN sed -i 's|/var/run/nginx.pid|/tmp/nginx.pid|g' /etc/nginx/nginx.conf \
  && chown -R nginx:nginx /usr/share/nginx/html \
  && chown -R nginx:nginx /var/cache/nginx \
  && chown -R nginx:nginx /var/run \
+ && chown -R nginx:nginx /etc/nginx/conf.d \
+ && chown -R nginx:nginx /etc/nginx/templates \
  && chmod -R 755 /usr/share/nginx/html
 
 USER nginx
