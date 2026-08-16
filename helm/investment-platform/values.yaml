@@ -105,8 +105,9 @@ frontend:
     tag: "v5"
 
   service:
-    type: ClusterIP
+    type: NodePort
     port: 8082
+    nodePort: 30082  # Direct access: http://localhost:30082
 
   resources:
     requests:
