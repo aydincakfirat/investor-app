@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: investment-platform-frontend
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: investment-platform
+    app.kubernetes.io/component: frontend
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/aydincakfirat/investor-app.git
+    targetRevision: main
+    path: helm/investment-platform
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-dev.yaml
+      parameters:
+        - name: backend.enabled
+          value: "false"
+        - name: frontend.enabled
+          value: "true"
+        - name: n8n.enabled
+          value: "false"
+        - name: postgresql.enabled
+          value: "false"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: investment-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+  retry:
+    limit: 5
+    backoff:
+      duration: 10s
+      factor: 2
+      maxDuration: 3m

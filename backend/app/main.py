@@ -6,7 +6,8 @@ Financial analysis, signals, and AI layers are added in later phases.
 """
 import structlog
 from contextlib import asynccontextmanager
-
+from app.api.health import router as health_router
+from app.api.markets import router as markets_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -79,6 +80,7 @@ def create_app() -> FastAPI:
 
     # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(health_router)
+    app.include_router(markets_router)
 
     # ── Root redirect ─────────────────────────────────────────────────────────
     @app.get("/", include_in_schema=False)

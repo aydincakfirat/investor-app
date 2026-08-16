@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: investment-platform-db
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: investment-platform
+    app.kubernetes.io/component: database
+spec:
+  project: default
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: postgresql
+    targetRevision: 18.8.6
+    helm:
+      parameters:
+        - name: auth.username
+          value: investuser
+        - name: auth.password
+          value: investpass
+        - name: auth.database
+          value: investdb
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: investment-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+  retry:
+    limit: 5
+    backoff:
+      duration: 10s
+      factor: 2
+      maxDuration: 3m

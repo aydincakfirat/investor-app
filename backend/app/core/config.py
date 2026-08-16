@@ -4,9 +4,7 @@ All secrets must come from the environment — never hard-coded here.
 """
 
 from functools import lru_cache
-import json
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -49,72 +47,10 @@ class Settings(BaseSettings):
     news_api_key: str = ""
 
     # ── CORS ──────────────────────────────────────────────────────────────
-    # Environment variable'dan string olarak okunuyor.
-    # Validator bunu list[str]'e dönüştürüyor.
-    cors_origins: str = (
-        "http://localhost:3000,http://localhost:5173"
-    )
-
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v: object) -> list[str]:
-        """
-        CORS origins değerini normalize eder.
-
-        Desteklenen formatlar:
-
-        Virgülle ayrılmış:
-            http://localhost:3000,http://localhost:5173
-
-        JSON array:
-            ["http://localhost:3000","http://localhost:5173"]
-
-        Tek değer:
-            http://localhost:3000
-        """
-
-        if isinstance(v, list):
-            return [str(item).strip() for item in v if str(item).strip()]
-
-        if isinstance(v, str):
-            v = v.strip()
-
-            if not v:
-                return []
-
-            # JSON array
-            if v.startswith("["):
-                try:
-                    parsed = json.loads(v)
-
-                    if not isinstance(parsed, list):
-                        raise ValueError(
-                            "CORS_ORIGINS JSON value must be an array."
-                        )
-
-                    return [
-                        str(item).strip()
-                        for item in parsed
-                        if str(item).strip()
-                    ]
-
-                except json.JSONDecodeError as exc:
-                    raise ValueError(
-                        f"Invalid JSON in CORS_ORIGINS: {v}"
-                    ) from exc
-
-            # Virgülle ayrılmış değer
-            return [
-                item.strip()
-                for item in v.split(",")
-                if item.strip()
-            ]
-
-        raise ValueError(
-            f"Invalid CORS_ORIGINS value: {type(v).__name__}"
-        )
-
-    # ── Settings ─────────────────────────────────────────────────────────
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ]
 
 
 @lru_cache
