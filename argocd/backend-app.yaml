@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: investment-platform-backend
+  name: investment-platform-be
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: investment-platform
