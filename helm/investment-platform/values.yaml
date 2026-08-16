@@ -28,7 +28,7 @@ backend:
   image:
     registry: docker.io
     repository: firataydincak/investor-backend
-    tag: "v6"
+    tag: "v7"
 
   service:
     type: ClusterIP
@@ -56,7 +56,7 @@ backend:
     AI_PROVIDER: "mock"
     OPENAI_MODEL: "gpt-4o"
     # Market data provider: mock | alpha_vantage | polygon | yahoo
-    MARKET_DATA_PROVIDER: "mock"
+    MARKET_DATA_PROVIDER: "yahoo"
     # News provider: mock | newsapi
     NEWS_PROVIDER: "mock"
 
@@ -99,7 +99,7 @@ frontend:
   image:
     registry: docker.io
     repository: firataydincak/investor-frontend
-    tag: "v2"
+    tag: "v3"
 
   service:
     type: ClusterIP
