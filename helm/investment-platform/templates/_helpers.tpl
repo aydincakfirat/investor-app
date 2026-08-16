@@ -70,15 +70,10 @@ Service account name helper.
 {{- end }}
 
 {{/*
-Database host — uses global.databaseHost for split-app architecture.
-When postgresql.enabled is false, falls back to externalDatabase.host.
+Database host — uses global.databaseHost (set in split-app architecture).
 */}}
 {{- define "investment-platform.databaseHost" -}}
-{{- if .Values.postgresql.enabled }}
 {{- .Values.global.databaseHost }}
-{{- else }}
-{{- .Values.externalDatabase.host }}
-{{- end }}
 {{- end }}
 
 {{/*
