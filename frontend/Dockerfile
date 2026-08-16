@@ -17,23 +17,24 @@ RUN npm run build
 # ── Stage 2: Production nginx image ───────────────────────────────────────────
 FROM nginx:1.27-alpine AS runtime
 
+ENV BACKEND_HOST=investment-platform-backend
+
 # Remove default nginx config and content
-RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf
+RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf \
+    && mkdir -p /tmp/nginx /var/cache/nginx /var/run
 
 # Copy built assets
 COPY --from=builder /build/dist /usr/share/nginx/html
 
-# Copy our nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy our nginx template config. nginx entrypoint will substitute env vars
+# from /etc/nginx/templates/*.template into /etc/nginx/conf.d/default.conf.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 
-# nginx non-root setup:
-# - /var/cache/nginx ve /var/run nginx kullanıcısına ver
-# - port 80 yerine 8080 kullan (non-root port)
-# - pid dosyası için /tmp kullan
-RUN sed -i 's/listen\s*80;/listen 8082;/g' /etc/nginx/conf.d/default.conf \
- && sed -i 's|/var/run/nginx.pid|/tmp/nginx.pid|g' /etc/nginx/nginx.conf \
+# nginx non-root setup
+RUN sed -i 's|/var/run/nginx.pid|/tmp/nginx.pid|g' /etc/nginx/nginx.conf \
  && chown -R nginx:nginx /usr/share/nginx/html \
  && chown -R nginx:nginx /var/cache/nginx \
+ && chown -R nginx:nginx /var/run \
  && chmod -R 755 /usr/share/nginx/html
 
 USER nginx
