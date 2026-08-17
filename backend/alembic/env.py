@@ -11,10 +11,10 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 # Import Base so Alembic can discover all models for autogenerate.
 from app.database.base import Base
+from app import models  # noqa: F401
 
 # Register all models — this import is intentionally side-effect-only.
-# Add new model modules here as they are created in later phases.
-# from app.models import asset, price  # Phase 2+
+# Model modules are imported by app.models so Alembic can autogenerate tables.
 
 config = context.config
 if config.config_file_name is not None:
