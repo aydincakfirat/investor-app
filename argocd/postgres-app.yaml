@@ -20,6 +20,10 @@ spec:
           value: investpass
         - name: auth.database
           value: investdb
+        - name: primary.initdb.scripts.create-n8n-db.sql
+          value: |
+            CREATE DATABASE n8n;
+            GRANT ALL PRIVILEGES ON DATABASE n8n TO investuser;
   destination:
     server: https://kubernetes.default.svc
     namespace: investment-platform

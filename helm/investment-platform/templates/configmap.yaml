@@ -28,7 +28,6 @@ data:
   N8N_DIAGNOSTICS_ENABLED:           {{ .Values.n8n.env.N8N_DIAGNOSTICS_ENABLED | quote }}
   N8N_VERSION_NOTIFICATIONS_ENABLED: {{ .Values.n8n.env.N8N_VERSION_NOTIFICATIONS_ENABLED | quote }}
   N8N_TEMPLATES_ENABLED:             {{ .Values.n8n.env.N8N_TEMPLATES_ENABLED | quote }}
-  EXECUTIONS_PROCESS:                {{ .Values.n8n.env.EXECUTIONS_PROCESS | quote }}
   EXECUTIONS_DATA_PRUNE:             {{ .Values.n8n.env.EXECUTIONS_DATA_PRUNE | quote }}
   EXECUTIONS_DATA_MAX_AGE:           {{ .Values.n8n.env.EXECUTIONS_DATA_MAX_AGE | quote }}
   N8N_HIRING_BANNER_ENABLED:         {{ .Values.n8n.env.N8N_HIRING_BANNER_ENABLED | quote }}
