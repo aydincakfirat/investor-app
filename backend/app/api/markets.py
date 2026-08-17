@@ -1,11 +1,14 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database.session import get_db
 from app.schemas.market import MarketHistory, MarketOverview
 from app.services.market_data import (
     MARKET_DEFINITIONS,
     MarketDataError,
     get_market_provider,
 )
+from app.services.market_sync import persist_quotes
 
 router = APIRouter(
     prefix="/api/markets",
@@ -14,7 +17,9 @@ router = APIRouter(
 
 
 @router.get("/overview", response_model=MarketOverview)
-async def get_market_overview():
+async def get_market_overview(
+    session: AsyncSession = Depends(get_db),
+):
     provider = get_market_provider()
 
     quotes = []
@@ -27,6 +32,7 @@ async def get_market_overview():
             # One bad symbol should not kill the entire dashboard.
             continue
 
+    await persist_quotes(session, quotes)
     return MarketOverview(markets=quotes)
 
 
