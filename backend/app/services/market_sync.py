@@ -34,14 +34,28 @@ async def persist_quote(session: AsyncSession, quote: MarketQuote) -> None:
         asset.currency = quote.currency
 
     timestamp = quote.timestamp or datetime.now(timezone.utc)
-    cached_quote = MarketQuoteCache(
-        asset_id=asset.id,
-        price=quote.price,
-        change=quote.change,
-        change_percent=quote.change_percent,
-        timestamp=timestamp,
+    cached_result = await session.execute(
+        select(MarketQuoteCache).where(
+            MarketQuoteCache.asset_id == asset.id,
+            MarketQuoteCache.timestamp == timestamp,
+        )
     )
-    session.add(cached_quote)
+    cached_quote = cached_result.scalar_one_or_none()
+
+    if cached_quote is None:
+        session.add(
+            MarketQuoteCache(
+                asset_id=asset.id,
+                price=quote.price,
+                change=quote.change,
+                change_percent=quote.change_percent,
+                timestamp=timestamp,
+            )
+        )
+    else:
+        cached_quote.price = quote.price
+        cached_quote.change = quote.change
+        cached_quote.change_percent = quote.change_percent
 
 
 async def persist_quotes(

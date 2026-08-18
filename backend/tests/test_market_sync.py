@@ -23,6 +23,7 @@ async def test_persist_quotes_creates_asset_and_cache(db_session):
     )
 
     await persist_quotes(db_session, [quote])
+    await persist_quotes(db_session, [quote])
 
     asset = (
         await db_session.execute(
@@ -38,3 +39,12 @@ async def test_persist_quotes_creates_asset_and_cache(db_session):
     assert asset.currency == "TRY"
     assert cached_quote.price == 100.0
     assert cached_quote.change_percent == 1.0
+    assert len(
+        (
+            await db_session.execute(
+                select(MarketQuoteCache).where(
+                    MarketQuoteCache.asset_id == asset.id
+                )
+            )
+        ).scalars().all()
+    ) == 1
