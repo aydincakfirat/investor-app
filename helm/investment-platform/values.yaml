@@ -108,7 +108,7 @@ frontend:
   image:
     registry: docker.io
     repository: firataydincak/investor-frontend
-    tag: "v5"
+    tag: "v6"
 
   service:
     type: NodePort
