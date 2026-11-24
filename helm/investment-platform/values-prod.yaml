@@ -39,7 +39,7 @@ frontend:
   image:
     registry: docker.io
     repository: firataydincak/investor-frontend
-    tag: "v11"
+    tag: "v1"
   resources:
     requests:
       cpu: 50m
